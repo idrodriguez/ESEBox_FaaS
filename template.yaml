@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: ESEBox Function for MergedBoxes
+
+Globals:
+  Function:
+    Timeout: 3
+    Environment:
+      Variables:
+        MONGODB_URI: "DEFAULT_VALUE"
+        MONGODB_DB: "DEFAULT_VALUE"
+        MONGODB_CL_M : "DEFAULT_VALUE"
+        MONGODB_CL_HR: "DEFAULT_VALUE"
+
+Parameters:
+  TABLENAME:
+    Type: String
+    Description : DynamoDB table for storing merged boxes
+    Default: 'mergedboxes'
+  
+  REGIONNAME:
+    Type: String
+    Description: Default region for deployment.
+    Default: 'eu-west-2'
+
+  AWSENVNAME:
+    Type: String
+    Description: AWS Environment where code is being executed (AWS_SAM_LOCAL or AWS).
+    Default: 'AWS'
+
+
+Resources:
+  MergedBoxesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TABLENAME
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+    
+  MergedBox:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: esebox_merged/
+      Handler: mergedbox.lambda_handler
+      Runtime: python3.8
+      Policies: AmazonDynamoDBFullAccess
+      Environment:
+        Variables:
+          TABLE: !Ref TABLENAME
+          REGION: !Ref REGIONNAME
+          AWSENV: !Ref AWSENVNAME
+      Events:
+        GetMergedBox:
+          Type: Api
+          Properties:
+            Path: /mb
+            Method: GET
+        MergeBox:
+          Type: Api
+          Properties:
+            Path: /mb
+            Method: POST
+            
+  HRMergedBox:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hr_mergedbox/
+      Handler: hr_mergedbox.get_hr_merged_box
+      Runtime: python3.8
+      Timeout: 600
+      Events:
+        HRMergedBox:
+          Type: Api
+          Properties:
+            Path: /hrmb
+            Method: get
+
+Outputs:
+  MergedBoxFunctionApi:
+    Description: "API Gateway endpoint URL for MergedBox Function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/mb/"
+  MergedBoxFunction:
+    Description: "MergedBox Lambda Function ARN"
+    Value: !GetAtt MergedBox.Arn
+  MergedBoxFunctionIamRole:
+    Description: "Implicit IAM Role created for MergedBox Function"
+    Value: !GetAtt MergedBox.Arn
+
+  HRMergedBoxFunctionApi:
+    Description: "API Gateway endpoint URL for HRMergedBox Function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hrmb/"
+  HRMergedBoxFunction:
+    Description: "HRMergedBox Lambda Function ARN"
+    Value: !GetAtt HRMergedBox.Arn
+  HRMergedBoxFunctionIamRole:
+    Description: "Implicit IAM Role created for HRMergedBox Function"
+    Value: !GetAtt HRMergedBox.Arn
